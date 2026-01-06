@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { useParams } from "react-router-dom"
+import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 
 import { PageTransition } from "@/shared/components/PageTransition"
 import { TimerHeader } from "../components/TimerHeader"
@@ -8,9 +8,14 @@ import { NavigationFooter } from "../components/NavigationFooter"
 import { ConfirmationModal } from "../components/ConfirmationModal"
 import { useTestPreview } from "../hooks/useTests"
 import { TestPalette } from "../components/TestPalette"
+import { APP_ROUTES } from "@/shared/config/env"
+import { Breadcrumbs } from "@/shared/ui/breadcrumbs"
 
 export function TestAttemptPage() {
   const { testId } = useParams()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const seriesId = searchParams.get("seriesId")
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selected, setSelected] = useState<Record<string, string[]>>({})
   const [marked, setMarked] = useState<Record<string, boolean>>({})
@@ -59,6 +64,14 @@ export function TestAttemptPage() {
 
   return (
     <PageTransition className="space-y-4">
+      <Breadcrumbs
+        items={[
+          { label: "Dashboard", href: APP_ROUTES.dashboard },
+          { label: "Test Series", href: APP_ROUTES.testSeriesCatalog },
+          seriesId ? { label: seriesId, href: APP_ROUTES.testSeriesDetail(seriesId) } : null,
+          { label: preview.data?.test?.name || `Test ${testId || ""}`, isCurrent: true },
+        ].filter(Boolean) as any}
+      />
       <TimerHeader
         testName={preview.data?.test?.name || `Test ${testId || ""}`}
         timeRemaining={62 * 60}
@@ -127,7 +140,14 @@ export function TestAttemptPage() {
         answered={answeredCount}
         total={total}
         onCancel={() => setShowExit(false)}
-        onConfirm={() => setShowExit(false)}
+        onConfirm={() => {
+          setShowExit(false)
+          if (seriesId) {
+            navigate(APP_ROUTES.testSeriesDetail(seriesId))
+          } else {
+            navigate(APP_ROUTES.testSeriesCatalog)
+          }
+        }}
       />
 
       <ConfirmationModal

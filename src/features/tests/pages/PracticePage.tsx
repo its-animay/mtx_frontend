@@ -104,7 +104,7 @@ export function PracticePage() {
       question_id: question.question_id,
       answer,
       time_ms: 0,
-      context: { source: "practice" },
+      context: {},
     })
   }
 

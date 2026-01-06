@@ -32,8 +32,14 @@ export const APP_ROUTES = {
   profilePreferences: "/profile/preferences",
   profileDeleted: "/profile/deleted",
   devMasters: "/dev/masters",
-  tests: "/tests",
+  tests: "/tests", // temporary legacy (redirected to /test-series)
+  testSeriesCatalog: "/test-series",
+  testSeriesDetail: (seriesId = ":seriesId") => `/test-series/${seriesId}`,
+  testPaperInfo: (seriesId = ":seriesId", testId = ":testId") => `/test-series/${seriesId}/tests/${testId}`,
+  testPaperInstructions: (seriesId = ":seriesId", testId = ":testId") =>
+    `/test-series/${seriesId}/tests/${testId}/instructions`,
   testInstructions: (id = ":testId") => `/tests/${id}/instructions`,
-  testAttempt: (id = ":testId") => `/tests/${id}/attempt`,
+  testAttempt: (id = ":testId") => `/tests/${id}/attempt`, // legacy
+  attempts: (attemptId = ":attemptId") => `/attempts/${attemptId}`,
   practice: "/practice",
 }

@@ -22,6 +22,9 @@ import { DevMastersPage } from "@/features/masters/pages/DevMastersPage"
 import { TestSeriesPage } from "@/features/tests/pages/TestSeriesPage"
 import { TestAttemptPage } from "@/features/tests/pages/TestAttemptPage"
 import { TestInstructionsPage } from "@/features/tests/pages/TestInstructionsPage"
+import { TestSeriesCatalogPage } from "@/features/tests/pages/TestSeriesCatalogPage"
+import { TestSeriesDetailPage } from "@/features/tests/pages/TestSeriesDetailPage"
+import { TestPaperInfoPage } from "@/features/tests/pages/TestPaperInfoPage"
 import { PracticePage } from "@/features/tests/pages/PracticePage"
 
 function AnimatedRoutes() {
@@ -30,7 +33,9 @@ function AnimatedRoutes() {
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        <Route path="/" element={<Navigate to={APP_ROUTES.dashboard} replace />} />
+        <Route path="/" element={<Navigate to={APP_ROUTES.testSeriesCatalog} replace />} />
+        {/* Temporary legacy redirect for /tests */}
+        <Route path={APP_ROUTES.tests} element={<Navigate to={APP_ROUTES.testSeriesCatalog} replace />} />
 
         <Route element={<AuthRoute />}>
           <Route path={APP_ROUTES.login} element={<LoginPage />} />
@@ -57,10 +62,19 @@ function AnimatedRoutes() {
                 <Route path={APP_ROUTES.profile} element={<ProfileViewPage />} />
                 <Route path={APP_ROUTES.profileEdit} element={<ProfileEditPage />} />
                 <Route path={APP_ROUTES.profilePreferences} element={<PreferencesPage />} />
+                {/* Legacy tests list (kept for now) */}
                 <Route path={APP_ROUTES.tests} element={<TestSeriesPage />} />
-                <Route path={APP_ROUTES.testInstructions()} element={<TestInstructionsPage />} />
+                {/* New hierarchy */}
+                <Route path={APP_ROUTES.testSeriesCatalog} element={<TestSeriesCatalogPage />} />
+                <Route path={APP_ROUTES.testSeriesDetail()} element={<TestSeriesDetailPage />} />
+                <Route path={APP_ROUTES.testPaperInfo()} element={<TestPaperInfoPage />} />
+                <Route path={APP_ROUTES.testPaperInstructions()} element={<TestInstructionsPage />} />
                 <Route path={APP_ROUTES.practice} element={<PracticePage />} />
+                {/* Legacy instructions/attempt */}
+                <Route path={APP_ROUTES.testInstructions()} element={<TestInstructionsPage />} />
                 <Route path={APP_ROUTES.testAttempt()} element={<TestAttemptPage />} />
+                {/* Preferred attempt route */}
+                <Route path={APP_ROUTES.attempts()} element={<TestAttemptPage />} />
               </Route>
               <Route path={APP_ROUTES.sessions} element={<SessionsPage />} />
               <Route path={APP_ROUTES.changePassword} element={<ChangePasswordPage />} />

@@ -11,9 +11,15 @@ import { Checkbox } from "@/shared/ui/checkbox"
 import { useCreateAttempt, useTestInstructions } from "../hooks/useTestInstructions"
 import { cn } from "@/shared/lib/utils"
 import { Alert, AlertDescription, AlertTitle } from "@/shared/ui/alert"
+const isDev = () => import.meta.env.MODE !== "production"
+import { Breadcrumbs } from "@/shared/ui/breadcrumbs"
+
+type InstructionsData = NonNullable<ReturnType<typeof useTestInstructions>["data"]>
+type SecurityRules = InstructionsData["security_and_proctoring"]
+type SupportData = InstructionsData["support"]
 
 export function TestInstructionsPage() {
-  const { testId } = useParams()
+  const { testId, seriesId } = useParams()
   const navigate = useNavigate()
   const [consent, setConsent] = useState(false)
 
@@ -38,18 +44,23 @@ export function TestInstructionsPage() {
   const maxAttempts = instructionsQuery.data?.attempt_rules?.max_attempts ?? MOCK_INSTRUCTIONS.attempt_rules?.max_attempts ?? "-"
 
   const onStart = async () => {
-    if (!testId || !consent || createAttempt.isLoading) return
+    if (!testId || !consent || createAttempt.isPending) return
     try {
       const res = await createAttempt.mutateAsync({ source: "instructions_page" })
-      navigate(`${APP_ROUTES.testAttempt(testId)}?attemptId=${res.attempt_id}`)
+      navigate(
+        `${APP_ROUTES.testAttempt(testId)}?attemptId=${res.attempt_id}${seriesId ? `&seriesId=${seriesId}` : ""}`,
+      )
     } catch (e) {
-      // Fallback to mock attempt for UI flow
-      navigate(`${APP_ROUTES.testAttempt(testId)}?attemptId=att_mock`)
+      if (isDev()) {
+        navigate(
+          `${APP_ROUTES.testAttempt(testId)}?attemptId=att_mock${seriesId ? `&seriesId=${seriesId}` : ""}`,
+        )
+      }
     }
   }
 
-  const resolvedData = instructionsQuery.data || MOCK_INSTRUCTIONS
-  const content = resolvedData.instructions?.content || {}
+  const resolvedData = instructionsQuery.data || (isDev() ? MOCK_INSTRUCTIONS : undefined)
+  const content = resolvedData?.instructions?.content || {}
   const sections = [
     { label: "General", items: content.general },
     { label: "Time", items: content.time },
@@ -62,10 +73,33 @@ export function TestInstructionsPage() {
 
   return (
     <PageTransition className="space-y-4">
+      <Breadcrumbs
+        items={[
+          { label: "Dashboard", href: APP_ROUTES.dashboard },
+          { label: "Test Series", href: APP_ROUTES.testSeriesCatalog },
+          seriesId ? { label: seriesId, href: APP_ROUTES.testSeriesDetail(seriesId) } : { label: "Series" },
+          { label: resolvedData?.test?.name || "Test", isCurrent: true },
+        ].filter(Boolean) as any}
+      />
+
       {instructionsQuery.isError ? (
         <Alert variant="destructive">
           <AlertTitle>Unable to load instructions from server</AlertTitle>
-          <AlertDescription>Showing fallback instructions so you can continue.</AlertDescription>
+          <AlertDescription>
+            {isDev()
+              ? "You can use fallback instructions in development."
+              : "Please retry. Fallback is disabled in production."}
+          </AlertDescription>
+          <div className="mt-2 flex gap-2">
+            <Button variant="outline" onClick={() => instructionsQuery.refetch()}>
+              Retry
+            </Button>
+            {!resolvedData && (
+              <Button variant="ghost" onClick={() => navigate(APP_ROUTES.testSeriesCatalog)}>
+                Back
+              </Button>
+            )}
+          </div>
         </Alert>
       ) : null}
 
@@ -83,32 +117,41 @@ export function TestInstructionsPage() {
         </Card>
       ) : (
         <>
-          <HeaderCard data={resolvedData} />
-          <SummaryStrip totalQuestions={totalQuestions} totalDurationSec={totalDurationSec} totalPapers={totalPapers} maxAttempts={maxAttempts} />
-          <PaperList papers={resolvedData.structure?.papers || []} />
-          <InstructionsPanel sections={sections} paperSpecific={content.paper_specific} />
-          <SecurityPanel security={resolvedData.security_and_proctoring} />
-          <SupportCard support={resolvedData.support} />
+          {resolvedData ? (
+            <>
+              <HeaderCard data={resolvedData} />
+              <SummaryStrip totalQuestions={totalQuestions} totalDurationSec={totalDurationSec} totalPapers={totalPapers} maxAttempts={maxAttempts} />
+              <PaperList papers={resolvedData?.structure?.papers || []} />
+              <InstructionsPanel sections={sections} paperSpecific={content.paper_specific} />
+              <SecurityPanel security={resolvedData?.security_and_proctoring} />
+              <SupportCard support={resolvedData?.support} />
 
-          <Card className="border bg-white shadow-sm">
-            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <label className="flex items-start gap-2 text-sm text-foreground">
-                <Checkbox checked={consent} onCheckedChange={(v) => setConsent(Boolean(v))} />
-                <span>
-                  {resolvedData.instructions?.display?.acknowledgement_text ||
-                    "I have read and understood the instructions and agree to follow the rules."}
-                </span>
-              </label>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => navigate(APP_ROUTES.tests)}>
-                  Back
-                </Button>
-                <Button onClick={onStart} disabled={!consent || createAttempt.isLoading}>
-                  {createAttempt.isLoading ? "Starting..." : "Start Test"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              <Card className="border bg-white shadow-sm">
+                <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <label className="flex items-start gap-2 text-sm text-foreground">
+                    <Checkbox checked={consent} onCheckedChange={(v) => setConsent(Boolean(v))} />
+                    <span>
+                      {resolvedData.instructions?.display?.acknowledgement_text ||
+                        "I have read and understood the instructions and agree to follow the rules."}
+                    </span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        navigate(seriesId ? APP_ROUTES.testSeriesDetail(seriesId) : APP_ROUTES.testSeriesCatalog)
+                      }
+                    >
+                      Back
+                    </Button>
+                    <Button onClick={onStart} disabled={!consent || createAttempt.isPending}>
+                      {createAttempt.isPending ? "Starting..." : "Start Test"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
         </>
       )}
     </PageTransition>
@@ -132,7 +175,7 @@ function HeaderCard({ data }: { data?: ReturnType<typeof useTestInstructions>["d
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           {data?.test?.tags?.map((tag) => (
-            <Badge key={tag} variant="secondary">
+            <Badge key={tag} variant="muted">
               {tag}
             </Badge>
           ))}
@@ -181,17 +224,13 @@ function SummaryItem({ label, value }: { label: string; value: string | number }
   )
 }
 
-function PaperList({
-  papers,
-}: {
-  papers: NonNullable<ReturnType<typeof useTestInstructions>["data"]>["structure"]["papers"] | typeof MOCK_INSTRUCTIONS.structure.papers
-}) {
+function PaperList({ papers }: { papers: any[] }) {
   if (!papers || papers.length === 0) return null
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-foreground">Papers / Sections</h3>
       <div className="grid gap-3 lg:grid-cols-2">
-        {papers.map((p) => (
+        {papers.map((p: any) => (
           <Card key={p.paper_id} className="border bg-white shadow-sm">
             <CardHeader>
               <CardTitle className="text-base">{p.title}</CardTitle>
@@ -299,7 +338,7 @@ function InstructionsPanel({
 function SecurityPanel({
   security,
 }: {
-  security?: ReturnType<typeof useTestInstructions>["data"]["security_and_proctoring"] | typeof MOCK_INSTRUCTIONS.security_and_proctoring
+  security?: SecurityRules | typeof MOCK_INSTRUCTIONS.security_and_proctoring
 }) {
   if (!security) return null
   const hasRules = Object.values(security).some((v) => Boolean(v))
@@ -336,9 +375,11 @@ function Rule({ label, value }: { label: string; value: string | number }) {
 function SupportCard({
   support,
 }: {
-  support?: ReturnType<typeof useTestInstructions>["data"]["support"] | typeof MOCK_INSTRUCTIONS.support
+  support?: SupportData | typeof MOCK_INSTRUCTIONS.support
 }) {
-  if (!support?.helpdesk && !support?.incident_policy) return null
+  const helpdesk = support?.helpdesk as { email?: string; phone?: string; chat_url?: string } | undefined
+  const incident = support?.incident_policy
+  if (!helpdesk && !incident) return null
   return (
     <Card className="border bg-white shadow-sm">
       <CardHeader>
@@ -346,25 +387,25 @@ function SupportCard({
         <CardDescription>Need help? Reach out.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2 text-sm text-foreground">
-        {support.helpdesk ? (
+        {helpdesk ? (
           <div className="space-y-1">
             <p className="text-muted-foreground">Helpdesk</p>
-            {support.helpdesk.email ? <p>Email: {support.helpdesk.email}</p> : null}
-            {support.helpdesk.phone ? <p>Phone: {support.helpdesk.phone}</p> : null}
-            {support.helpdesk.chat_url ? (
+            {helpdesk.email ? <p>Email: {helpdesk.email}</p> : null}
+            {helpdesk.phone ? <p>Phone: {helpdesk.phone}</p> : null}
+            {helpdesk.chat_url ? (
               <p>
                 Chat:{" "}
-                <a className="text-primary underline" href={support.helpdesk.chat_url} target="_blank" rel="noreferrer">
+                <a className="text-primary underline" href={helpdesk.chat_url} target="_blank" rel="noreferrer">
                   Open chat
                 </a>
               </p>
             ) : null}
           </div>
         ) : null}
-        {support.incident_policy ? (
+        {incident ? (
           <div className="space-y-1">
             <p className="text-muted-foreground">Incident policy</p>
-            <p>{support.incident_policy}</p>
+            <p>{incident}</p>
           </div>
         ) : null}
       </CardContent>
