@@ -33,6 +33,7 @@ export const APP_ROUTES = {
   profileDeleted: "/profile/deleted",
   devMasters: "/dev/masters",
   tests: "/tests",
+  testInstructions: (id = ":testId") => `/tests/${id}/instructions`,
   testAttempt: (id = ":testId") => `/tests/${id}/attempt`,
   practice: "/practice",
 }

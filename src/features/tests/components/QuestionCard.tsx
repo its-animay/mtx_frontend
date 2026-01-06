@@ -19,6 +19,7 @@ interface QuestionCardProps {
   markedForReview?: boolean
   onSelect: (optionId: string) => void
   onToggleMark: () => void
+  onClearSelection?: () => void
 }
 
 export function QuestionCard({
@@ -32,6 +33,7 @@ export function QuestionCard({
   markedForReview,
   onSelect,
   onToggleMark,
+  onClearSelection,
 }: QuestionCardProps) {
   return (
     <Card className="border bg-white shadow-sm">
@@ -61,9 +63,17 @@ export function QuestionCard({
           {options.map((option) => {
             const isSelected = selected.includes(option.id)
             return (
-              <button
+              <div
                 key={option.id}
                 onClick={() => onSelect(option.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    onSelect(option.id)
+                  }
+                }}
                 className={cn(
                   "flex w-full items-start gap-3 rounded-lg border px-3 py-2 text-left transition",
                   isSelected ? "border-primary bg-primary/5" : "border-muted bg-white hover:bg-muted/60",
@@ -74,13 +84,18 @@ export function QuestionCard({
                   <p className="text-sm font-semibold text-foreground">{option.label}</p>
                   <p className="text-sm text-muted-foreground">{option.text}</p>
                 </div>
-              </button>
+              </div>
             )
           })}
         </div>
-        <p className="text-xs text-muted-foreground">
-          {multiple ? "Multiple answers possible" : "Single answer"}
-        </p>
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <p>{multiple ? "Multiple answers possible" : "Single answer"}</p>
+          {onClearSelection ? (
+            <button className="text-xs text-primary underline" onClick={onClearSelection}>
+              Clear selection
+            </button>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   )

@@ -24,6 +24,15 @@ interface PracticeQuestionCardProps {
   onNext: () => void
   onPrev: () => void
   onSubmitAnswer?: () => void
+  breadcrumb?: string[]
+  avgTime?: string
+  successRate?: string
+  tags?: string[]
+  bookmarked?: boolean
+  flagged?: boolean
+  onToggleBookmark?: () => void
+  onToggleFlag?: () => void
+  hintsAvailable?: number
 }
 
 export function PracticeQuestionCard({
@@ -41,12 +50,59 @@ export function PracticeQuestionCard({
   onNext,
   onPrev,
   onSubmitAnswer,
+  breadcrumb,
+  avgTime,
+  successRate,
+  tags,
+  bookmarked,
+  flagged,
+  onToggleBookmark,
+  onToggleFlag,
+  hintsAvailable,
 }: PracticeQuestionCardProps) {
   return (
     <Card className="border bg-white shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-base">Question {number}</CardTitle>
-        <CardDescription>Practice mode (no timer)</CardDescription>
+      <CardHeader className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <CardTitle className="text-base">Question {number}</CardTitle>
+            <CardDescription>Practice mode (no timer)</CardDescription>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Button
+              variant="outline"
+              onClick={onToggleBookmark}
+              className={cn(
+                "rounded-full border px-3 py-1 text-xs font-semibold",
+                bookmarked ? "border-primary bg-primary/10 text-primary" : "",
+              )}
+            >
+              ⭐ Bookmark
+            </Button>
+            <Button
+              variant="outline"
+              onClick={onToggleFlag}
+              className={cn(
+                "rounded-full border px-3 py-1 text-xs font-semibold",
+                flagged ? "border-amber-300 bg-amber-50 text-amber-800" : "",
+              )}
+            >
+              🚩 Flag
+            </Button>
+          </div>
+        </div>
+        {breadcrumb?.length ? (
+          <div className="text-xs text-muted-foreground">{breadcrumb.join(" > ")}</div>
+        ) : null}
+        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+          {avgTime ? <span>Avg time: {avgTime}</span> : null}
+          {successRate ? <span>Success rate: {successRate}</span> : null}
+          {tags?.map((t) => (
+            <span key={t} className="rounded-full bg-muted px-2 py-1 text-[11px] text-foreground">
+              {t}
+            </span>
+          ))}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-base text-foreground">{text}</p>
@@ -55,9 +111,17 @@ export function PracticeQuestionCard({
             {options.map((option) => {
               const isSelected = selected.includes(option.id)
               return (
-                <button
+                <div
                   key={option.id}
                   onClick={() => onSelect(option.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      onSelect(option.id)
+                    }
+                  }}
                   className={cn(
                     "flex w-full items-start gap-3 rounded-lg border px-3 py-2 text-left transition",
                     isSelected ? "border-primary bg-primary/5" : "border-muted bg-white hover:bg-muted/60",
@@ -68,7 +132,7 @@ export function PracticeQuestionCard({
                     <p className="text-sm font-semibold">{option.label}</p>
                     <p className="text-sm text-muted-foreground">{option.text}</p>
                   </div>
-                </button>
+                </div>
               )
             })}
           </div>
@@ -84,6 +148,14 @@ export function PracticeQuestionCard({
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2">
+          {typeof hintsAvailable === "number" ? (
+            <Button variant="outline" className="gap-2">
+              💡 Hint {hintsAvailable > 0 ? `(${hintsAvailable})` : ""}
+            </Button>
+          ) : null}
+          <Button variant="ghost" className="text-sm">
+            Report issue
+          </Button>
           <Button variant="default" onClick={onSubmitAnswer}>
             Submit answer
           </Button>

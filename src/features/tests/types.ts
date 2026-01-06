@@ -3,15 +3,17 @@ export type TestType = "full" | "topic" | "mock" | "practice"
 export interface TestSeries {
   id: string
   name: string
-  subtitle: string
+  subtitle?: string
   subjects: string[]
-  questions: number
-  timeMinutes: number
-  totalMarks: number
-  attempts: number
-  avgScore: number
+  questions?: number
+  timeMinutes?: number
+  totalMarks?: number
+  attempts?: number
+  avgScore?: number
   type: TestType
   status?: "not_started" | "in_progress" | "completed"
+  tags?: string[]
+  language?: string
 }
 
 export interface QuestionOption {

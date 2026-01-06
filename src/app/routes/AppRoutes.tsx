@@ -21,6 +21,7 @@ import { DeletedProfilePage } from "@/features/profile/pages/DeletedProfilePage"
 import { DevMastersPage } from "@/features/masters/pages/DevMastersPage"
 import { TestSeriesPage } from "@/features/tests/pages/TestSeriesPage"
 import { TestAttemptPage } from "@/features/tests/pages/TestAttemptPage"
+import { TestInstructionsPage } from "@/features/tests/pages/TestInstructionsPage"
 import { PracticePage } from "@/features/tests/pages/PracticePage"
 
 function AnimatedRoutes() {
@@ -57,6 +58,7 @@ function AnimatedRoutes() {
                 <Route path={APP_ROUTES.profileEdit} element={<ProfileEditPage />} />
                 <Route path={APP_ROUTES.profilePreferences} element={<PreferencesPage />} />
                 <Route path={APP_ROUTES.tests} element={<TestSeriesPage />} />
+                <Route path={APP_ROUTES.testInstructions()} element={<TestInstructionsPage />} />
                 <Route path={APP_ROUTES.practice} element={<PracticePage />} />
                 <Route path={APP_ROUTES.testAttempt()} element={<TestAttemptPage />} />
               </Route>

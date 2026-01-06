@@ -6,30 +6,8 @@ import { TimerHeader } from "../components/TimerHeader"
 import { QuestionCard } from "../components/QuestionCard"
 import { NavigationFooter } from "../components/NavigationFooter"
 import { ConfirmationModal } from "../components/ConfirmationModal"
-import type { Question } from "../types"
-
-const MOCK_QUESTIONS: Question[] = [
-  {
-    id: "q1",
-    text: "A particle moves with uniform acceleration. Which graph best represents its velocity-time relationship?",
-    options: [
-      { id: "a", label: "A", text: "Straight line with positive slope" },
-      { id: "b", label: "B", text: "Horizontal line" },
-      { id: "c", label: "C", text: "Parabolic curve" },
-      { id: "d", label: "D", text: "Exponential curve" },
-    ],
-  },
-  {
-    id: "q2",
-    text: "Evaluate the integral ∫x e^x dx.",
-    options: [
-      { id: "a", label: "A", text: "x e^x + C" },
-      { id: "b", label: "B", text: "e^x (x - 1) + C" },
-      { id: "c", label: "C", text: "e^x (x + 1) + C" },
-      { id: "d", label: "D", text: "e^x + C" },
-    ],
-  },
-]
+import { useTestPreview } from "../hooks/useTests"
+import { TestPalette } from "../components/TestPalette"
 
 export function TestAttemptPage() {
   const { testId } = useParams()
@@ -39,56 +17,109 @@ export function TestAttemptPage() {
   const [showExit, setShowExit] = useState(false)
   const [showSubmit, setShowSubmit] = useState(false)
 
-  const question = useMemo(() => MOCK_QUESTIONS[currentIndex], [currentIndex])
-  const total = MOCK_QUESTIONS.length
+  const preview = useTestPreview(testId)
+
+  const question = useMemo(() => preview.data?.questions?.[currentIndex], [preview.data, currentIndex])
+  const total = preview.data?.questions?.length ?? 0
   const current = currentIndex + 1
   const answeredCount = Object.values(selected).filter((arr) => arr.length > 0).length
   const reviewedCount = Object.values(marked).filter(Boolean).length
+  const statuses = useMemo(() => {
+    const statusMap: Record<number, "answered" | "unanswered" | "review"> = {}
+    preview.data?.questions?.forEach((q, idx) => {
+      const key = q.question_id
+      if (marked[key]) {
+        statusMap[idx + 1] = "review"
+      } else if (selected[key]?.length) {
+        statusMap[idx + 1] = "answered"
+      } else {
+        statusMap[idx + 1] = "unanswered"
+      }
+    })
+    return statusMap
+  }, [preview.data?.questions, marked, selected])
 
   const handleSelect = (optionId: string) => {
+    if (!question) return
     setSelected((prev) => ({
       ...prev,
-      [question.id]: prev[question.id]?.includes(optionId)
-        ? prev[question.id].filter((id) => id !== optionId)
+      [question.question_id]: prev[question.question_id]?.includes(optionId)
+        ? prev[question.question_id].filter((id) => id !== optionId)
         : [optionId],
     }))
   }
 
-  const handleMark = () => setMarked((prev) => ({ ...prev, [question.id]: !prev[question.id] }))
+  const handleMark = () => {
+    if (!question) return
+    setMarked((prev) => ({ ...prev, [question.question_id]: !prev[question.question_id] }))
+  }
 
   const handlePrev = () => setCurrentIndex((i) => Math.max(0, i - 1))
-  const handleNext = () => setCurrentIndex((i) => Math.min(total - 1, i + 1))
+  const handleNext = () => setCurrentIndex((i) => Math.min(Math.max(0, total - 1), i + 1))
 
   return (
     <PageTransition className="space-y-4">
-      <TimerHeader testName={`Test ${testId || ""}`} timeRemaining={62 * 60} totalTime={90 * 60} onExit={() => setShowExit(true)} />
-
-      <QuestionCard
-        number={current}
-        total={total}
-        text={question.text}
-        mediaUrl={question.mediaUrl}
-        options={question.options}
-        multiple={question.multiple}
-        selected={selected[question.id] || []}
-        markedForReview={marked[question.id]}
-        onSelect={handleSelect}
-        onToggleMark={handleMark}
+      <TimerHeader
+        testName={preview.data?.test?.name || `Test ${testId || ""}`}
+        timeRemaining={62 * 60}
+        totalTime={90 * 60}
+        onExit={() => setShowExit(true)}
       />
 
-      <NavigationFooter
-        current={current}
-        total={total}
-        reviewedCount={reviewedCount}
-        onPrev={handlePrev}
-        onNext={() => {
-          if (current === total) {
-            setShowSubmit(true)
-          } else {
-            handleNext()
-          }
-        }}
-      />
+      {preview.isLoading ? (
+        <div className="rounded-lg border bg-muted/40 p-6 text-sm text-muted-foreground">Loading test...</div>
+      ) : preview.isError ? (
+        <div className="rounded-lg border border-dashed bg-slate-50 p-6 text-center text-sm text-destructive">
+          Unable to load test. Please check access or try again.
+        </div>
+      ) : !question ? (
+        <div className="rounded-lg border border-dashed bg-slate-50 p-6 text-center text-sm text-muted-foreground">
+          No questions found.
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+            <QuestionCard
+              number={current}
+              total={total}
+              text={question.text}
+              mediaUrl={undefined}
+              options={(question.options || []).map((opt, idx) => ({
+                id: opt.option_id || `${idx}`,
+                label: opt.label || opt.option_id || `Option ${idx + 1}`,
+                text: opt.text || "",
+              }))}
+              multiple={question.question_type === "multi_choice"}
+              selected={selected[question.question_id] || []}
+              markedForReview={marked[question.question_id]}
+              onClearSelection={() =>
+                setSelected((prev) => ({
+                  ...prev,
+                  [question.question_id]: [],
+                }))
+              }
+              onSelect={handleSelect}
+              onToggleMark={handleMark}
+            />
+
+            <TestPalette total={total} current={current} statuses={statuses} onJump={(idx) => setCurrentIndex(idx)} />
+          </div>
+
+          <NavigationFooter
+            current={current}
+            total={total}
+            reviewedCount={reviewedCount}
+            onPrev={handlePrev}
+            onNext={() => {
+              if (current === total) {
+                setShowSubmit(true)
+              } else {
+                handleNext()
+              }
+            }}
+          />
+        </>
+      )}
 
       <ConfirmationModal
         open={showExit}
