@@ -23,6 +23,7 @@ const tabs = [
 export function TestSeriesCatalogPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const [openSeries, setOpenSeries] = useState<TestSeriesItem | null>(null)
   const [filters, setFilters] = useState<FetchTestSeriesParams>({
     q: searchParams.get("q") || "",
     exam: searchParams.get("exam") || "",
@@ -32,6 +33,7 @@ export function TestSeriesCatalogPage() {
     page: parseInt(searchParams.get("page") || "1", 10),
     page_size: 12,
   })
+  const [searchInput, setSearchInput] = useState(filters.q || "")
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["key"]>(
     ((searchParams.get("tab") as any) || "all") as any,
   )
@@ -40,6 +42,13 @@ export function TestSeriesCatalogPage() {
   const series = query.data?.items || []
 
   const continueSeries = useMemo(() => series.find((s) => s.user_progress?.active_attempt_id), [series])
+  const counts = useMemo(() => {
+    const all = series.length
+    const newer = series.filter((s) => s.badges?.is_new).length
+    const inprog = series.filter((s) => s.user_progress?.status === "in_progress").length
+    const completed = series.filter((s) => s.user_progress?.status === "completed").length
+    return { all, new: newer, inprog, completed }
+  }, [series])
 
   const filteredByTab = useMemo(() => {
     if (activeTab === "new") return series.filter((s) => s.badges?.is_new)
@@ -66,8 +75,18 @@ export function TestSeriesCatalogPage() {
 
   const handleClear = () => {
     setFilters({ q: "", exam: "", difficulty: "all", language: "all", sort: "newest", page: 1, page_size: 12 })
+    setSearchInput("")
     setSearchParams({})
   }
+
+  // debounce search input into filters.q
+  useEffect(() => {
+    const t = setTimeout(() => {
+      updateParams({ q: searchInput })
+    }, 250)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput])
 
   const loadMore = () => {
     const nextPage = (filters.page || 1) + 1
@@ -88,21 +107,40 @@ export function TestSeriesCatalogPage() {
         {continueSeries ? <ContinueCard item={continueSeries} onOpen={(item) => navigate(APP_ROUTES.testSeriesDetail(item.series_id))} /> : null}
 
         <FilterToolbar
-          filters={filters}
-          onChange={(next) => updateParams(next)}
+          filters={{ ...filters, q: searchInput }}
+          onChange={(next) => {
+            if (next.q !== undefined) setSearchInput(next.q || "")
+            else updateParams(next)
+          }}
           onClear={handleClear}
           activeCount={getActiveCount(filters)}
         />
 
-        <TabRow active={activeTab} onChange={(tab) => { setActiveTab(tab); updateParams({}, tab) }} />
+        <TabRow
+          active={activeTab}
+          counts={counts}
+          onChange={(tab) => {
+            setActiveTab(tab)
+            updateParams({}, tab)
+          }}
+        />
 
-        <ActiveChips filters={filters} activeTab={activeTab} onChange={(next) => updateParams(next)} onClearTab={() => setActiveTab("all")} />
+        <ActiveChips
+          filters={filters}
+          activeTab={activeTab}
+          onChange={(next) => updateParams(next)}
+          onClearTab={() => setActiveTab("all")}
+          onClearAll={handleClear}
+          showingCount={showing.length}
+          searchText={filters.q}
+        />
 
         <SeriesGrid
           loading={query.isLoading}
           error={query.isError}
           series={showing}
           onOpen={(item) => navigate(APP_ROUTES.testSeriesDetail(item.series_id))}
+          onPreview={(item) => setOpenSeries(item)}
           onRetry={() => query.refetch()}
           onClear={handleClear}
         />
@@ -114,6 +152,10 @@ export function TestSeriesCatalogPage() {
             </Button>
           </div>
         ) : null}
+        <SeriesDrawer open={!!openSeries} item={openSeries} onClose={() => setOpenSeries(null)} onOpenDetail={(id) => {
+          setOpenSeries(null)
+          navigate(APP_ROUTES.testSeriesDetail(id))
+        }} />
       </div>
     </PageTransition>
   )
@@ -312,9 +354,17 @@ function FilterToolbar({
   )
 }
 
-function TabRow({ active, onChange }: { active: string; onChange: (tab: typeof tabs[number]["key"]) => void }) {
+function TabRow({
+  active,
+  onChange,
+  counts,
+}: {
+  active: string
+  onChange: (tab: typeof tabs[number]["key"]) => void
+  counts: { all: number; new: number; inprog: number; completed: number }
+}) {
   return (
-    <div className="flex flex-wrap gap-2 rounded-xl bg-white/80 px-2 py-2">
+    <div className="sticky top-2 z-10 flex flex-wrap gap-2 rounded-xl bg-white/90 px-2 py-2 shadow-sm">
       {tabs.map((tab) => (
         <Button
           key={tab.key}
@@ -323,7 +373,18 @@ function TabRow({ active, onChange }: { active: string; onChange: (tab: typeof t
           className="rounded-full px-3"
           onClick={() => onChange(tab.key)}
         >
-          {tab.label}
+          {tab.label}{" "}
+          <span className="text-[11px] font-normal text-muted-foreground">
+            (
+            {tab.key === "all"
+              ? counts.all
+              : tab.key === "new"
+                ? counts.new
+                : tab.key === "in_progress"
+                  ? counts.inprog
+                  : counts.completed}
+            )
+          </span>
         </Button>
       ))}
     </div>
@@ -335,11 +396,17 @@ function ActiveChips({
   activeTab,
   onChange,
   onClearTab,
+  onClearAll,
+  showingCount,
+  searchText,
 }: {
   filters: FetchTestSeriesParams
   activeTab: string
   onChange: (next: Partial<FetchTestSeriesParams>) => void
   onClearTab: () => void
+  onClearAll: () => void
+  showingCount: number
+  searchText?: string | null
 }) {
   const chips = [
     filters.q ? { key: "q", label: `Search: “${filters.q}”`, onClear: () => onChange({ q: "" }) } : null,
@@ -353,10 +420,11 @@ function ActiveChips({
     activeTab !== "all" ? { key: "tab", label: `Tab: ${activeTab}`, onClear: onClearTab } : null,
   ].filter(Boolean) as { key: string; label: string; onClear: () => void }[]
 
-  if (chips.length === 0) return null
-
   return (
-    <div className="flex flex-wrap gap-2 rounded-xl bg-white/80 px-2 py-2">
+    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white/90 px-3 py-2 shadow-sm">
+      <span className="text-xs text-muted-foreground">
+        Showing {showingCount} {searchText ? `results for “${searchText}”` : "series"}
+      </span>
       {chips.map((chip) => (
         <button
           key={chip.key}
@@ -366,6 +434,14 @@ function ActiveChips({
           {chip.label} <span className="text-xs text-primary/80">×</span>
         </button>
       ))}
+      {chips.length > 0 ? (
+        <button
+          onClick={onClearAll}
+          className="ml-auto text-xs font-semibold text-primary underline decoration-dotted underline-offset-4"
+        >
+          Clear all
+        </button>
+      ) : null}
     </div>
   )
 }
@@ -375,6 +451,7 @@ function SeriesGrid({
   error,
   series,
   onOpen,
+  onPreview,
   onRetry,
   onClear,
 }: {
@@ -382,6 +459,7 @@ function SeriesGrid({
   error: boolean
   series: TestSeriesItem[]
   onOpen: (item: TestSeriesItem) => void
+  onPreview: (item: TestSeriesItem) => void
   onRetry: () => void
   onClear: () => void
 }) {
@@ -423,7 +501,7 @@ function SeriesGrid({
   return (
     <div className="grid gap-5 md:grid-cols-2">
       {series.map((item) => (
-        <TestSeriesCard key={item.series_id} item={item} onOpen={onOpen} />
+        <TestSeriesCard key={item.series_id} item={item} onOpen={onOpen} onPreview={onPreview} />
       ))}
     </div>
   )
@@ -444,6 +522,69 @@ function HeroStats({ series }: { series: TestSeriesItem[] }) {
           <span className="font-semibold text-foreground">{pct}%</span>
         </div>
         <Progress value={pct} />
+      </div>
+    </div>
+  )
+}
+
+function SeriesDrawer({
+  open,
+  item,
+  onClose,
+  onOpenDetail,
+}: {
+  open: boolean
+  item: TestSeriesItem | null
+  onClose: () => void
+  onOpenDetail: (id: string) => void
+}) {
+  if (!open || !item) return null
+  return (
+    <div className="fixed inset-0 z-40 flex justify-end bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="h-full w-full max-w-xl bg-white p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-xl font-semibold text-foreground">{item.title}</h3>
+            {item.subtitle ? <p className="text-sm text-muted-foreground">{item.subtitle}</p> : null}
+            <p className="text-xs text-muted-foreground">
+              {item.exam || "—"} {item.stage ? `• ${item.stage}` : null}
+            </p>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => onClose()}>
+            Close
+          </Button>
+        </div>
+        <div className="mt-4 space-y-2 text-sm text-foreground">
+          {item.tags?.length ? (
+            <div className="flex flex-wrap gap-2">
+              {item.tags.map((tag) => (
+                <Badge key={tag} variant="muted" className="rounded-full px-2 py-1">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
+          {item.languages?.length ? (
+            <p className="text-xs text-muted-foreground">Languages: {item.languages.join(", ")}</p>
+          ) : null}
+          <p className="text-sm text-muted-foreground">
+            Papers: {item.papers_count ?? "-"} • Questions: {item.total_questions ?? "-"} • Duration:{" "}
+            {item.total_duration_sec ? `${Math.round(item.total_duration_sec / 60)} mins` : "-"}
+          </p>
+        </div>
+        <div className="mt-4 flex gap-2">
+          <Button onClick={() => onOpenDetail(item.series_id)} className="flex-1">
+            Open series
+          </Button>
+          <Button variant="outline" className="flex-1" onClick={onClose}>
+            Back
+          </Button>
+        </div>
       </div>
     </div>
   )

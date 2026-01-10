@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/sha
 import { Badge } from "@/shared/ui/badge"
 import { Separator } from "@/shared/ui/separator"
 import { Checkbox } from "@/shared/ui/checkbox"
-import { useCreateAttempt, useTestInstructions } from "../hooks/useTestInstructions"
+import { useTestInstructions } from "../hooks/useTestInstructions"
 import { cn } from "@/shared/lib/utils"
 import { Alert, AlertDescription, AlertTitle } from "@/shared/ui/alert"
 const isDev = () => import.meta.env.MODE !== "production"
@@ -24,7 +24,6 @@ export function TestInstructionsPage() {
   const [consent, setConsent] = useState(false)
 
   const instructionsQuery = useTestInstructions(testId)
-  const createAttempt = useCreateAttempt(testId)
 
   useEffect(() => {
     setConsent(false)
@@ -44,19 +43,8 @@ export function TestInstructionsPage() {
   const maxAttempts = instructionsQuery.data?.attempt_rules?.max_attempts ?? MOCK_INSTRUCTIONS.attempt_rules?.max_attempts ?? "-"
 
   const onStart = async () => {
-    if (!testId || !consent || createAttempt.isPending) return
-    try {
-      const res = await createAttempt.mutateAsync({ source: "instructions_page" })
-      navigate(
-        `${APP_ROUTES.testAttempt(testId)}?attemptId=${res.attempt_id}${seriesId ? `&seriesId=${seriesId}` : ""}`,
-      )
-    } catch (e) {
-      if (isDev()) {
-        navigate(
-          `${APP_ROUTES.testAttempt(testId)}?attemptId=att_mock${seriesId ? `&seriesId=${seriesId}` : ""}`,
-        )
-      }
-    }
+    if (!testId || !consent) return
+    navigate(`${APP_ROUTES.testAttempt(testId)}${seriesId ? `?seriesId=${seriesId}` : ""}`)
   }
 
   const resolvedData = instructionsQuery.data || (isDev() ? MOCK_INSTRUCTIONS : undefined)
@@ -136,21 +124,21 @@ export function TestInstructionsPage() {
                     </span>
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        navigate(seriesId ? APP_ROUTES.testSeriesDetail(seriesId) : APP_ROUTES.testSeriesCatalog)
-                      }
-                    >
-                      Back
-                    </Button>
-                    <Button onClick={onStart} disabled={!consent || createAttempt.isPending}>
-                      {createAttempt.isPending ? "Starting..." : "Start Test"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    navigate(seriesId ? APP_ROUTES.testSeriesDetail(seriesId) : APP_ROUTES.testSeriesCatalog)
+                  }
+                >
+                  Back
+                </Button>
+                <Button onClick={onStart} disabled={!consent}>
+                  Start Test
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </>
           ) : null}
         </>
       )}
